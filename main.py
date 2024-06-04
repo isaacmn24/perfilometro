@@ -6,7 +6,18 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 #from some_stepper_motor_library import StepperMotor
 from hx711 import HX711
+from stepper import Stepper
 from simple_pid import PID
+
+# PINES
+# Stepper
+IN1Pin = 7
+IN2Pin = 11
+IN3Pin = 13
+IN4Pin = 15
+# Celda de carga
+dataPin = 17
+clockPin = 27
 
 # Global variables
 force_measurements = []
@@ -22,7 +33,7 @@ referencia = 75     # gramos
 muestras = 10       # cantidad de muestras del sensor de fuerza
 
 # Setup sensor
-hx = HX711(17,27)
+hx = HX711(dataPin, clockPin)
 hx.set_reading_format("MSB", "MSB")
 
 # Unidad de referencia que se debe calibrar (actualmente está con incertidumbre de +2 g)
@@ -31,6 +42,17 @@ hx.set_reference_unit(referenceUnit)
 hx.reset()
 hx.tare()
 print("Tarado listo! Puede comenzar a medir...")
+
+# Constantes de desplazamiento del motor
+dientesPinon = 25
+moduloPinon = 1
+radioPinon = (dientesPinon/moduloPinon) / 2
+radioPinon /= 10    # Convierto a cm
+pasosPorRev = 512
+radianesPorPaso = 2*np.pi/pasosPorRev
+
+# Setup stepper
+stepper = Stepper(IN1Pin, IN2Pin, IN3Pin, IN4Pin, radianesPorPaso, radioPinon)
 
 # Sensor data acquisition thread
 def sensor_data_acquisition():
@@ -42,14 +64,15 @@ def sensor_data_acquisition():
 # PID control and motor movement thread
 def pid_control_motor():
     global current_force, motor_position, stop_threads
-    #motor = StepperMotor()
     pid = PID(kp, ki, kd, setpoint=referencia)
     while not stop_threads:
         control = pid(current_force)
+        if control >= 40:
+            control = 40
+        elif control <= -40:
+            control = -40
         print(control)
-        #motor.move(control)
-        motor_position += control
-        #print(motor_position)
+        #stepper.mover(control)
         time.sleep(0.01)  # Control loop rate
 
 # Real-time plotting thread
@@ -66,37 +89,40 @@ def real_time_plotting():
         ax.set_xlim(0, 100)
         #ax.set_ylim(0, 100)
         ax.set_xlabel('Tiempo (s)')
-        ax.set_ylabel('Señal de control')
+        ax.set_ylabel('Desplazamiento lineal (cm)')
         ax.set_title('PID')
         return ln,
 
     def update(frame):
         current_time = time.time() - start_time  # Calculate elapsed time
         x_data.append(current_time)
-        y_data.append(motor_position)
+        y_data.append(stepper.desplazamientoLineal)
         ln.set_data(x_data, y_data)
         return ln,
 
     ani = animation.FuncAnimation(fig, update, frames=range(100), init_func=init, blit=True)
     plt.show(block=True)
+    
 
-# Main function to start threads
-def main():
-    global stop_threads
-    sensor_thread = threading.Thread(target=sensor_data_acquisition)
-    pid_thread = threading.Thread(target=pid_control_motor)
+global stop_threads
+sensor_thread = threading.Thread(target=sensor_data_acquisition)
+pid_thread = threading.Thread(target=pid_control_motor)
 
-    sensor_thread.start()
-    pid_thread.start()
+sensor_thread.start()
 
-    try:
-        while True:
-            #real_time_plotting()
-            time.sleep(1)
-    except KeyboardInterrupt:
-        stop_threads = True
-        sensor_thread.join()
-        pid_thread.join()
+while current_force != referencia:
+    stepper.mover(10)
+    
+stepper.desplazamientoLineal = 0
+pid_thread.start()
 
-if __name__ == "__main__":
-    main()
+try:
+    while True:
+        #real_time_plotting()
+        time.sleep(1)
+except KeyboardInterrupt:
+    stop_threads = True
+    sensor_thread.join()
+    pid_thread.join()
+    GPIO.cleanup()
+

@@ -1,53 +1,45 @@
 import RPi.GPIO as GPIO
 import time
 
-GPIO.setmode(GPIO.BOARD)
+class Stepper:
+    def __init__(self, IN1, IN2, IN3, IN4, radianesPorPaso, radio):
+        GPIO.setmode(GPIO.BOARD)
+        self.ControlPin = [IN1,IN2,IN3,IN4]
+        
+        self.radianesPorPaso = radianesPorPaso
+        self.radio = radio
+        self.desplazamientoLineal = 0
 
-ControlPin = [7,11,13,15]
+        for pin in self.ControlPin:
+            GPIO.setup(pin,GPIO.OUT)
+            GPIO.output(pin,0)
 
-for pin in ControlPin:
-    GPIO.setup(pin,GPIO.OUT)
-    GPIO.output(pin,0)
+        self.seq = [[1,0,0,0],
+               [1,1,0,0],
+               [0,1,0,0],
+               [0,1,1,0],
+               [0,0,1,0],
+               [0,0,1,1],
+               [0,0,0,1],
+               [1,0,0,1]]
 
-seq = [[1,0,0,0],
-       [1,1,0,0],
-       [0,1,0,0],
-       [0,1,1,0],
-       [0,0,1,0],
-       [0,0,1,1],
-       [0,0,0,1],
-       [1,0,0,1]]
+        self.npasos = 0
 
-npasos = 0
+    def calcularDesplazamientoLineal(self, pasos):
+        return self.radianesPorPaso*pasos*self.radio
 
-def step_motor(steps, direction):
-    if direction == 'forward':
-        sequence = seq
-    elif direction == 'backward':
-        sequence = seq[::-1]
-    else:
-        raise ValueError("Direction must be 'forward' or 'backward'")
-
-    for i in range(steps):
-        for halfstep in range(8):
-            for pin in range(4):
-                GPIO.output(ControlPin[pin], sequence[halfstep][pin])
-            time.sleep(0.001)
-
-try:
-    step_motor(100, 'backward')
-    time.sleep(1)
-    step_motor(100, 'forward')
-finally:
+    def mover(self, steps):
+        if steps >= 0:
+            sequence = self.seq
+            self.desplazamientoLineal -= self.celcularDesplazamientoLineal(steps)
+            
+        else:
+            sequence = self.seq[::-1]
+            self.desplazamientoLineal += self.celcularDesplazamientoLineal(steps)
     
-    GPIO.cleanup()
-# para juntarlo con el codigo lo que se puede hacer es un if,
-# que si el valor se fuerza es mayor a cierto valor, se debe
-# de dar un n pasos y al reves si deja de sentir fuerza
-
-#if fuerza > 10:
-#    step_motor(100, 'backward')
-#    pasos += 1
-#if fuerza < 8
-#    step_motor(100, 'forward')
-#    pasos -= 1
+        for i in range(steps):
+            for halfstep in range(8):
+                for pin in range(4):
+                    GPIO.output(self.ControlPin[pin], sequence[halfstep][pin])
+                time.sleep(0.001)
+        
