@@ -1,11 +1,11 @@
 import RPi.GPIO as GPIO
+import numpy as np
 import time
 
 class Stepper:
     def __init__(self, IN1, IN2, IN3, IN4, radianesPorPaso, radio):
-        GPIO.setmode(GPIO.BOARD)
         self.ControlPin = [IN1,IN2,IN3,IN4]
-        
+
         self.radianesPorPaso = radianesPorPaso
         self.radio = radio
         self.desplazamientoLineal = 0
@@ -29,17 +29,16 @@ class Stepper:
         return self.radianesPorPaso*pasos*self.radio
 
     def mover(self, steps):
-        if steps >= 0:
+        if steps < 0:
             sequence = self.seq
-            self.desplazamientoLineal -= self.celcularDesplazamientoLineal(steps)
-            
+            self.desplazamientoLineal -= self.calcularDesplazamientoLineal(steps)
+
         else:
             sequence = self.seq[::-1]
-            self.desplazamientoLineal += self.celcularDesplazamientoLineal(steps)
-    
-        for i in range(steps):
+            self.desplazamientoLineal += self.calcularDesplazamientoLineal(steps)
+
+        for i in range(np.abs(steps)):
             for halfstep in range(8):
                 for pin in range(4):
                     GPIO.output(self.ControlPin[pin], sequence[halfstep][pin])
-                time.sleep(0.001)
-        
+                time.sleep(0.0005)

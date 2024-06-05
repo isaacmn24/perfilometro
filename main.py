@@ -11,10 +11,10 @@ from simple_pid import PID
 
 # PINES
 # Stepper
-IN1Pin = 7
-IN2Pin = 11
-IN3Pin = 13
-IN4Pin = 15
+IN1Pin = 6
+IN2Pin = 13
+IN3Pin = 19
+IN4Pin = 26
 # Celda de carga
 dataPin = 17
 clockPin = 27
@@ -23,13 +23,14 @@ clockPin = 27
 force_measurements = []
 current_force = 0
 motor_position = 0
+global stop_threads
 stop_threads = False
 
 # Constantes de control que puedo modificar
 kp = 1
 ki = 0.1
 kd = 0.05
-referencia = 75     # gramos
+referencia = 10     # gramos
 muestras = 10       # cantidad de muestras del sensor de fuerza
 
 # Setup sensor
@@ -37,7 +38,7 @@ hx = HX711(dataPin, clockPin)
 hx.set_reading_format("MSB", "MSB")
 
 # Unidad de referencia que se debe calibrar (actualmente está con incertidumbre de +2 g)
-referenceUnit = 17000
+referenceUnit = -17000
 hx.set_reference_unit(referenceUnit)
 hx.reset()
 hx.tare()
@@ -59,7 +60,7 @@ def sensor_data_acquisition():
     global current_force, force_measurements, stop_threads
     while not stop_threads:
         current_force = hx.get_weight(muestras)
-        time.sleep(0.01)  # Adjust the sampling rate as needed
+        #time.sleep(0.0)  # Adjust the sampling rate as needed
 
 # PID control and motor movement thread
 def pid_control_motor():
@@ -72,8 +73,8 @@ def pid_control_motor():
         elif control <= -40:
             control = -40
         print(control)
-        #stepper.mover(control)
-        time.sleep(0.01)  # Control loop rate
+        stepper.mover(int(control))
+        #time.sleep(0.005)  # Control loop rate
 
 # Real-time plotting thread
 def real_time_plotting():
@@ -102,27 +103,24 @@ def real_time_plotting():
 
     ani = animation.FuncAnimation(fig, update, frames=range(100), init_func=init, blit=True)
     plt.show(block=True)
-    
 
-global stop_threads
 sensor_thread = threading.Thread(target=sensor_data_acquisition)
 pid_thread = threading.Thread(target=pid_control_motor)
 
 sensor_thread.start()
 
-while current_force != referencia:
+while current_force < referencia:
     stepper.mover(10)
-    
+
 stepper.desplazamientoLineal = 0
 pid_thread.start()
 
 try:
     while True:
-        #real_time_plotting()
+        real_time_plotting()
         time.sleep(1)
 except KeyboardInterrupt:
     stop_threads = True
     sensor_thread.join()
     pid_thread.join()
     GPIO.cleanup()
-
