@@ -41,4 +41,4 @@ class Stepper:
             for halfstep in range(8):
                 for pin in range(4):
                     GPIO.output(self.ControlPin[pin], sequence[halfstep][pin])
-                time.sleep(0.0005)
+                time.sleep(0.00003)

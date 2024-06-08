@@ -29,9 +29,10 @@ stop_threads = False
 # Constantes de control que puedo modificar
 kp = 1
 ki = 0.1
-kd = 0.05
+kd = 0.1
 referencia = 10     # gramos
-muestras = 10       # cantidad de muestras del sensor de fuerza
+muestras = 5        # cantidad de muestras del sensor de fuerza
+limControl = 40     # Límite de pasos que puede dar el control
 
 # Setup sensor
 hx = HX711(dataPin, clockPin)
@@ -60,25 +61,25 @@ def sensor_data_acquisition():
     global current_force, force_measurements, stop_threads
     while not stop_threads:
         current_force = hx.get_weight(muestras)
+        print(current_force)
         #time.sleep(0.0)  # Adjust the sampling rate as needed
 
 # PID control and motor movement thread
 def pid_control_motor():
-    global current_force, motor_position, stop_threads
+    global current_force, stop_threads, control
     pid = PID(kp, ki, kd, setpoint=referencia)
     while not stop_threads:
         control = pid(current_force)
-        if control >= 40:
-            control = 40
-        elif control <= -40:
-            control = -40
-        print(control)
+        if control >= limControl:
+            control = limControl
+        elif control <= -limControl:
+            control = -limControl
+        #print(control)
         stepper.mover(int(control))
         #time.sleep(0.005)  # Control loop rate
 
 # Real-time plotting thread
 def real_time_plotting():
-    global motor_position
     plt.ion()
     fig, ax = plt.subplots()
     x_data, y_data = [], []
@@ -96,7 +97,7 @@ def real_time_plotting():
 
     def update(frame):
         current_time = time.time() - start_time  # Calculate elapsed time
-        x_data.append(current_time)
+        x_data.append(control)
         y_data.append(stepper.desplazamientoLineal)
         ln.set_data(x_data, y_data)
         return ln,
@@ -117,8 +118,9 @@ pid_thread.start()
 
 try:
     while True:
+        print(stepper.desplazamientoLineal)
         real_time_plotting()
-        time.sleep(1)
+        #time.sleep(1)
 except KeyboardInterrupt:
     stop_threads = True
     sensor_thread.join()
