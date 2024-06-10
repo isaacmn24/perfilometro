@@ -4,6 +4,7 @@ import time
 
 class Stepper:
     def __init__(self, IN1, IN2, IN3, IN4, radianesPorPaso, radio):
+        GPIO.setmode(GPIO.BCM)
         self.ControlPin = [IN1,IN2,IN3,IN4]
 
         self.radianesPorPaso = radianesPorPaso

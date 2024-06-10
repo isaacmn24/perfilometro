@@ -39,7 +39,7 @@ hx = HX711(dataPin, clockPin)
 hx.set_reading_format("MSB", "MSB")
 
 # Unidad de referencia que se debe calibrar (actualmente está con incertidumbre de +2 g)
-referenceUnit = -17000
+referenceUnit = 114
 hx.set_reference_unit(referenceUnit)
 hx.reset()
 hx.tare()
@@ -61,12 +61,12 @@ def sensor_data_acquisition():
     global current_force, force_measurements, stop_threads
     while not stop_threads:
         current_force = hx.get_weight(muestras)
-        print(current_force)
-        #time.sleep(0.0)  # Adjust the sampling rate as needed
+        #print(current_force)
+        #time.sleep(0.01)  # Adjust the sampling rate as needed
 
 # PID control and motor movement thread
 def pid_control_motor():
-    global current_force, stop_threads, control
+    global current_force, stop_threads, control, posicionMotor
     pid = PID(kp, ki, kd, setpoint=referencia)
     while not stop_threads:
         control = pid(current_force)
@@ -74,9 +74,9 @@ def pid_control_motor():
             control = limControl
         elif control <= -limControl:
             control = -limControl
-        #print(control)
         stepper.mover(int(control))
-        #time.sleep(0.005)  # Control loop rate
+        posicionMotor = stepper.desplazamientoLineal
+        time.sleep(1)  # Control loop rate
 
 # Real-time plotting thread
 def real_time_plotting():
@@ -89,7 +89,7 @@ def real_time_plotting():
 
     def init():
         ax.set_xlim(0, 100)
-        #ax.set_ylim(0, 100)
+        ax.set_ylim(-10, 10)
         ax.set_xlabel('Tiempo (s)')
         ax.set_ylabel('Desplazamiento lineal (cm)')
         ax.set_title('PID')
@@ -110,15 +110,15 @@ pid_thread = threading.Thread(target=pid_control_motor)
 
 sensor_thread.start()
 
-while current_force < referencia:
-    stepper.mover(10)
+#while current_force < referencia:
+    #stepper.mover(-10)
 
 stepper.desplazamientoLineal = 0
 pid_thread.start()
 
 try:
     while True:
-        print(stepper.desplazamientoLineal)
+        #print(posicionMotor)
         real_time_plotting()
         #time.sleep(1)
 except KeyboardInterrupt:
